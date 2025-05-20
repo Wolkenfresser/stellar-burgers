@@ -49,7 +49,8 @@ module.exports = {
   },
   plugins: [
     new ESLintPlugin({
-      extensions: ['.js', '.jsx', '.ts', '.tsx']
+      extensions: ['.js', '.jsx', '.ts', '.tsx'],
+      quiet: true
     }),
     new HtmlWebpackPlugin({
       template: './public/index.html'
@@ -83,8 +84,7 @@ module.exports = {
   },
   output: {
     path: path.resolve(__dirname, './dist'),
-    filename: 'bundle.js',
-    publicPath: '/'
+    filename: 'bundle.js'
   },
   devServer: {
     static: path.join(__dirname, './dist'),

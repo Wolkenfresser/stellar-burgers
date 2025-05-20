@@ -1,50 +1,48 @@
 import { FC, useMemo } from 'react';
 import { TConstructorIngredient, TIngredient } from '@utils-types';
 import { BurgerConstructorUI } from '@ui';
-import { useDispatch, useSelector } from '../../services/store';
-import {
-  resetConstructor,
-  constructorSelector
-} from '../../services/slices/constructorSlice/constructorSlice';
-import {
-  orderLoadingSelector,
-  orderItemSelector,
-  resetOrderItem,
-  orderBurger
-} from '../../services/slices/orderSlice/orderSlice';
-import { isAuthSelector } from '../../services/slices/userSlice/userSlice';
+
+import { useAppDispatch, useAppSelector } from '../../services/store';
+import { fetchOrderBurger, resetOrderModalData } from '../../slices/orderSlice';
 import { useNavigate } from 'react-router-dom';
+import { resetConstructor } from '../../slices/burgerConstructorSlice';
 
 export const BurgerConstructor: FC = () => {
-  /** TODO: взять переменные constructorItems, orderRequest и orderModalData из стора */
-  const dispatch = useDispatch();
-  const constructorItems = useSelector(constructorSelector);
-  const orderRequest = useSelector(orderLoadingSelector);
-  const orderModalData = useSelector(orderItemSelector);
-  const isAuth = useSelector(isAuthSelector);
+  const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const { bun, ingredients } = useAppSelector(
+    (state) => state.burgerConstructor
+  );
+  const isAuthenticated = useAppSelector((state) => state.user.isAuthenticated);
 
-  const onOrderClick = () => {
-    if (!isAuth) {
-      navigate('/login');
+  const { orderModalData, orderRequest } = useAppSelector(
+    (state) => state.order
+  );
+
+  const constructorItems = {
+    bun: bun ?? null,
+    ingredients: ingredients ?? []
+  };
+
+  const onOrderClick = async () => {
+    if (!constructorItems.bun || orderRequest) {
       return;
     }
-    if (!constructorItems.bun || orderRequest) return;
 
-    const orderData = !constructorItems.bun
-      ? ['']
-      : [
-          constructorItems.bun._id,
-          ...constructorItems.ingredients.map((item) => item._id),
-          constructorItems.bun._id
-        ];
+    if (!isAuthenticated) return navigate('/login');
 
-    dispatch(orderBurger(orderData));
+    const order = [
+      constructorItems.bun._id,
+      ...constructorItems.ingredients.map((ingredient) => ingredient._id),
+      constructorItems.bun._id
+    ];
+
+    await dispatch(fetchOrderBurger(order));
+    dispatch(resetConstructor());
   };
 
   const closeOrderModal = () => {
-    dispatch(resetOrderItem());
-    dispatch(resetConstructor());
+    dispatch(resetOrderModalData());
   };
 
   const price = useMemo(

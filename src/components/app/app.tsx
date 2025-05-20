@@ -1,55 +1,84 @@
-import { useEffect } from 'react';
 import {
   ConstructorPage,
   Feed,
-  NotFound404,
-  Login,
-  Register,
   ForgotPassword,
-  ResetPassword,
+  Login,
+  NotFound404,
   Profile,
-  ProfileOrders
+  ProfileOrders,
+  Register,
+  ResetPassword
 } from '@pages';
 import '../../index.css';
 import styles from './app.module.css';
-import { getIngredients } from '../../services/slices/ingredientSlice/ingredientSlice';
-import { getUser } from '../../services/slices/userSlice/userSlice';
-import { AppHeader, Modal, OrderInfo, IngredientDetails } from '@components';
+
+import { AppHeader, IngredientDetails, Modal, OrderInfo } from '@components';
+import { Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useAppDispatch, useAppSelector } from '../../services/store';
+import { fetchIngredients } from '../../slices/ingredientSlice';
+import { AppRoutes } from './appRoutes';
+import ProtectedRoute from '../protectedRoute/ProtectedRoute';
 import {
-  Routes,
-  Route,
-  useLocation,
-  useNavigate,
-  useMatch
-} from 'react-router-dom';
-import { useDispatch } from '../../services/store';
-import { ProtectedRoute } from '../../protectedRoute/protectedRoute';
+  fetchCheckAuth,
+  fetchUser,
+  setAuthChecked
+} from '../../slices/userSlice';
+import { getCookie } from '../../utils/cookie';
+import { refreshToken } from '@api';
+import { resetOrderModalData } from '../../slices/orderSlice';
 
 const App = () => {
   const location = useLocation();
-  const dispatch = useDispatch();
+  const background = location.state?.background;
+  const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  const modalClose = () => navigate(-1);
+  const orderNumber = useAppSelector(
+    (state) => state.order.orderModalData?.number ?? ''
+  );
 
   useEffect(() => {
-    dispatch(getIngredients());
-    dispatch(getUser());
+    dispatch(fetchIngredients());
   }, [dispatch]);
 
-  const profilNum = useMatch('/profile/orders/:number')?.params.number;
-  const feedNum = useMatch('/feed/:number')?.params.number;
-  const num = profilNum || feedNum;
-  const orderNum = `#${num && num.padStart(6, '0')}`;
-  const background = location.state?.background;
+  useEffect(() => {
+    const checkAuth = async () => {
+      const refreshToken = getCookie('refreshToken');
+      if (refreshToken) {
+        await dispatch(fetchUser());
+        await dispatch(fetchCheckAuth());
+      } else {
+        dispatch(setAuthChecked(true));
+      }
+    };
+
+    checkAuth();
+  }, [dispatch, refreshToken]);
+
+  const handleModalClose = () => {
+    dispatch(resetOrderModalData());
+    navigate(-1);
+  };
 
   return (
     <div className={styles.app}>
       <AppHeader />
       <Routes location={background || location}>
-        <Route path='/' element={<ConstructorPage />} />
-        <Route path='/feed' element={<Feed />} />
+        {/* Обычные роуты */}
+        <Route path={AppRoutes.HOME} element={<ConstructorPage />} />
+        <Route path={AppRoutes.FEED} element={<Feed />} />
         <Route
-          path='/login'
+          path={AppRoutes.INGREDIENT_DETAILS}
+          element={<IngredientDetails title='Детали ингредиента' />}
+        />
+        <Route
+          path={AppRoutes.ORDER_DETAILS}
+          element={<OrderInfo title={`#${orderNumber}`} />}
+        />
+
+        {/* Защищённые роуты */}
+        <Route
+          path={AppRoutes.LOGIN}
           element={
             <ProtectedRoute onlyUnAuth>
               <Login />
@@ -57,7 +86,7 @@ const App = () => {
           }
         />
         <Route
-          path='/register'
+          path={AppRoutes.REGISTER}
           element={
             <ProtectedRoute onlyUnAuth>
               <Register />
@@ -65,7 +94,7 @@ const App = () => {
           }
         />
         <Route
-          path='/forgot-password'
+          path={AppRoutes.FORGOT_PASSWORD}
           element={
             <ProtectedRoute onlyUnAuth>
               <ForgotPassword />
@@ -73,104 +102,66 @@ const App = () => {
           }
         />
         <Route
-          path='/reset-password'
+          path={AppRoutes.RESET_PASSWORD}
           element={
-            <ProtectedRoute>
+            <ProtectedRoute onlyUnAuth>
               <ResetPassword />
             </ProtectedRoute>
           }
         />
-        <Route path='/profile'>
-          <Route
-            index
-            element={
-              <ProtectedRoute>
-                <Profile />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path='orders'
-            element={
-              <ProtectedRoute>
-                <ProfileOrders />
-              </ProtectedRoute>
-            }
-          />
-        </Route>
         <Route
-          path='/feed/:number'
-          element={
-            <div className={styles.detailPageWrap}>
-              <p
-                className={`text text_type_digits-default ${styles.detailHeader}`}
-              >
-                Заказ
-              </p>
-              <OrderInfo />
-            </div>
-          }
-        />
-        <Route
-          path='/ingredients/:id'
-          element={
-            <div className={styles.detailPageWrap}>
-              <p className={`text text_type_main-large ${styles.detailHeader}`}>
-                Детали ингредиента
-              </p>
-              <IngredientDetails />
-            </div>
-          }
-        />
-        <Route
-          path='/profile/orders/:number'
+          path={AppRoutes.PROFILE}
           element={
             <ProtectedRoute>
-              <div className={styles.detailPageWrap}>
-                <p
-                  className={`text text_type_digits-default ${styles.detailHeader}`}
-                >
-                  {orderNum}
-                </p>
-                <OrderInfo />
-              </div>
+              <Profile />
             </ProtectedRoute>
           }
         />
-        <Route path='*' element={<NotFound404 />} />
+        <Route
+          path={AppRoutes.PROFILE_ORDERS}
+          element={
+            <ProtectedRoute>
+              <ProfileOrders />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path={AppRoutes.PROFILE_ORDERS_NUMBER}
+          element={
+            <ProtectedRoute>
+              <OrderInfo title={`#${orderNumber}`} />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route path={AppRoutes.NOT_FOUND} element={<NotFound404 />} />
       </Routes>
+
+      {/* Модальные окна */}
       {background && (
         <Routes>
           <Route
-            path='/feed/:number'
+            path={AppRoutes.INGREDIENT_DETAILS}
             element={
-              <Modal
-                title={orderNum}
-                onClose={modalClose}
-                children={<OrderInfo />}
-              />
+              <Modal onClose={handleModalClose} title='Детали ингредиента'>
+                <IngredientDetails />
+              </Modal>
             }
           />
           <Route
-            path='/ingredients/:id'
+            path={AppRoutes.ORDER_DETAILS}
             element={
-              <Modal
-                title='Детали ингредиента'
-                onClose={modalClose}
-                children={<IngredientDetails />}
-              />
+              <Modal onClose={handleModalClose} title={`#${orderNumber}`}>
+                <OrderInfo />
+              </Modal>
             }
           />
           <Route
-            path='/profile/orders/:number'
+            path={AppRoutes.PROFILE_ORDERS_NUMBER}
             element={
-              <ProtectedRoute>
-                <Modal
-                  title={orderNum}
-                  onClose={modalClose}
-                  children={<OrderInfo />}
-                />
-              </ProtectedRoute>
+              <Modal title={`#${orderNumber}`} onClose={handleModalClose}>
+                <OrderInfo />
+              </Modal>
             }
           />
         </Routes>

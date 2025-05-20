@@ -1,31 +1,24 @@
-import { FC, useMemo, useEffect } from 'react';
+import { FC, useEffect, useMemo } from 'react';
 import { Preloader } from '../ui/preloader';
 import { OrderInfoUI } from '../ui/order-info';
 import { TIngredient } from '@utils-types';
-import { useDispatch, useSelector } from '../../services/store';
-import {
-  getOrderByNumber,
-  orderItemSelector,
-  resetOrderItem
-} from '../../services/slices/orderSlice/orderSlice';
-import { ingredientsSelector } from '../../services/slices/ingredientSlice/ingredientSlice';
-import { useParams } from 'react-router-dom';
+import { useAppDispatch, useAppSelector } from '../../services/store';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { fetchOrderByNumber } from '../../slices/orderSlice';
+import { Modal } from '../modal';
 
-export const OrderInfo: FC = () => {
-  /** TODO: взять переменные orderData и ingredients из стора */
-  const dispatch = useDispatch();
-  const params = useParams();
+export const OrderInfo: FC<{ title?: string }> = ({ title }) => {
+  const { number } = useParams<{ number: string }>();
+  const { ingredients } = useAppSelector((state) => state.ingredients);
+  const orderData = useAppSelector((state) => state.order.orderModalData);
+  const isLoading = useAppSelector((state) => state.order.isLoading);
+  const location = useLocation();
+  const isModalOpen = location.state?.background;
 
+  const dispatch = useAppDispatch();
   useEffect(() => {
-    dispatch(getOrderByNumber(Number(params.number)));
-
-    return () => {
-      dispatch(resetOrderItem());
-    };
+    dispatch(fetchOrderByNumber(Number(number)));
   }, [dispatch]);
-
-  const orderData = useSelector(orderItemSelector);
-  const ingredients: TIngredient[] = useSelector(ingredientsSelector);
 
   /* Готовим данные для отображения */
   const orderInfo = useMemo(() => {
@@ -73,5 +66,13 @@ export const OrderInfo: FC = () => {
     return <Preloader />;
   }
 
-  return <OrderInfoUI orderInfo={orderInfo} />;
+  return isLoading ? (
+    <Preloader />
+  ) : (
+    <OrderInfoUI
+      orderInfo={orderInfo}
+      isModalOpen={!!isModalOpen}
+      title={title}
+    />
+  );
 };
